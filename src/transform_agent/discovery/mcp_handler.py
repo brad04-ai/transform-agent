@@ -63,6 +63,7 @@ def _get_tools() -> list[dict]:
                             "json", "csv", "xml", "yaml", "toml",
                             "html", "markdown", "plain_text",
                             "pdf", "excel", "docx",
+                            "metar", "taf", "notam",
                         ],
                         "description": "The format of the input data. Use the exact enum value, e.g. 'json', 'csv', 'xml'.",
                     },
@@ -191,6 +192,7 @@ def _get_tools() -> list[dict]:
                             "html", "markdown", "plain_text",
                             "base64", "url_encoded", "hex",
                             "pdf", "excel", "docx",
+                            "metar", "taf", "notam",
                         ],
                     },
                     "target_format": {
@@ -207,6 +209,7 @@ def _get_tools() -> list[dict]:
                             "html", "markdown", "plain_text",
                             "base64", "url_encoded", "hex",
                             "pdf", "excel", "docx",
+                            "metar", "taf", "notam",
                         ],
                     },
                 },

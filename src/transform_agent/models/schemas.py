@@ -26,6 +26,9 @@ class Format(str, Enum):
     BASE64 = "base64"
     URL_ENCODED = "url_encoded"
     HEX = "hex"
+    METAR = "metar"
+    TAF = "taf"
+    NOTAM = "notam"
 
 
 # Binary formats that must be base64-encoded in transit

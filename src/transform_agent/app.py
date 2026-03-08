@@ -108,6 +108,18 @@ def _register_transforms() -> None:
     r(F.DOCX, F.PLAIN_TEXT,  documents.docx_to_plain_text, cost_d, "DOCX → Plain Text")
     r(F.DOCX, F.MARKDOWN,    documents.docx_to_markdown,   cost_d, "DOCX → Markdown")
 
+    # --- Aviation ---
+    from transform_agent.transforms import aviation
+    r(F.METAR, F.JSON,       aviation.metar_to_json,       cost_t, "METAR → JSON")
+    r(F.METAR, F.PLAIN_TEXT, aviation.metar_to_plain_text,  cost_t, "METAR → Plain Text")
+    r(F.METAR, F.MARKDOWN,   aviation.metar_to_markdown,    cost_t, "METAR → Markdown")
+    r(F.TAF,   F.JSON,       aviation.taf_to_json,          cost_t, "TAF → JSON")
+    r(F.TAF,   F.PLAIN_TEXT, aviation.taf_to_plain_text,    cost_t, "TAF → Plain Text")
+    r(F.TAF,   F.MARKDOWN,   aviation.taf_to_markdown,      cost_t, "TAF → Markdown")
+    r(F.NOTAM, F.JSON,       aviation.notam_to_json,        cost_t, "NOTAM → JSON")
+    r(F.NOTAM, F.PLAIN_TEXT, aviation.notam_to_plain_text,  cost_t, "NOTAM → Plain Text")
+    r(F.NOTAM, F.MARKDOWN,   aviation.notam_to_markdown,    cost_t, "NOTAM → Markdown")
+
     # --- Encoding ---
     r(F.PLAIN_TEXT, F.BASE64,      encoding.to_base64,       cost_e, "Text → Base64")
     r(F.BASE64, F.PLAIN_TEXT,      encoding.from_base64,     cost_e, "Base64 → Text")

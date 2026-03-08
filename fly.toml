@@ -1,4 +1,9 @@
-app = 'transform-agent'
+# fly.toml app configuration file generated for transform-agent-lingering-surf-8155 on 2026-03-06T19:53:16-08:00
+#
+# See https://fly.io/docs/reference/configuration/ for information about how to use this file.
+#
+
+app = 'transform-agent-lingering-surf-8155'
 primary_region = 'iad'
 
 [build]
@@ -15,14 +20,15 @@ primary_region = 'iad'
     hard_limit = 250
     soft_limit = 200
 
-[[http_service.checks]]
-  grace_period = "10s"
-  interval = "30s"
-  method = "GET"
-  timeout = "5s"
-  path = "/health"
+  [[http_service.checks]]
+    interval = '30s'
+    timeout = '5s'
+    grace_period = '10s'
+    method = 'GET'
+    path = '/health'
 
 [[vm]]
   memory = '512mb'
   cpu_kind = 'shared'
   cpus = 1
+  memory_mb = 512
