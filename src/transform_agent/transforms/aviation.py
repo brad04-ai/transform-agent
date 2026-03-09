@@ -550,7 +550,7 @@ def _parse_sigmet_manual(raw: str) -> dict:
     if m:
         result["issuing_office"] = m.group(1)
 
-    m = re.search(r'SIGMET\s+([A-Z0-9]+)\s+VALID', raw)
+    m = re.search(r'SIGMET\s+([A-Z0-9]+(?:\s+\d+)?)\s+VALID', raw)
     if m:
         result["identifier"] = m.group(1)
 
