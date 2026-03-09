@@ -988,3 +988,164 @@ async def atis_to_markdown(data: bytes, options: dict | None = None) -> bytes:
     raw = data.decode().strip()
     parsed = _parse_atis_manual(raw)
     return _atis_to_markdown(parsed).encode()
+
+
+# ---------------------------------------------------------------------------
+# Winds Aloft (FB Winds) parsing
+# ---------------------------------------------------------------------------
+
+def _parse_winds_aloft_manual(raw: str) -> dict:
+    raw = raw.strip()
+    result = {"raw": raw, "type": "WINDS_ALOFT"}
+
+    # Header info
+    m = re.search(r'DATA BASED ON\s+(\d{6})Z', raw)
+    if m:
+        result["data_based_on"] = m.group(1) + "Z"
+
+    m = re.search(r'VALID\s+(\d{6})Z', raw)
+    if m:
+        result["valid_time"] = m.group(1) + "Z"
+
+    m = re.search(r'FOR USE\s+(\d{4})-(\d{4})Z', raw)
+    if m:
+        result["for_use"] = m.group(1) + "Z to " + m.group(2) + "Z"
+
+    # Parse altitude levels from header
+    ft_line = re.search(r'FT\s+([\d\s]+)', raw)
+    altitudes = []
+    if ft_line:
+        altitudes = [int(x) for x in ft_line.group(1).split()]
+        result["altitudes_ft"] = altitudes
+
+    # Parse station data
+    stations = []
+    lines = raw.split("\n")
+    data_started = False
+    for line in lines:
+        if line.strip().startswith("FT "):
+            data_started = True
+            continue
+        if not data_started:
+            continue
+        line = line.strip()
+        if not line:
+            continue
+        parts = line.split()
+        if len(parts) < 2:
+            continue
+        station_id = parts[0]
+        if not re.match(r'^[A-Z]{3}$', station_id):
+            continue
+
+        station_data = {"station": station_id, "levels": []}
+        for i, val in enumerate(parts[1:]):
+            if i >= len(altitudes):
+                break
+            alt = altitudes[i]
+            level = {"altitude_ft": alt * 100 if alt < 1000 else alt}
+
+            if val == "9900":
+                level["light_and_variable"] = True
+            elif len(val) >= 4:
+                try:
+                    dir_speed = val[:4]
+                    wind_dir = int(dir_speed[:2]) * 10
+                    wind_spd = int(dir_speed[2:4])
+
+                    # Handle winds > 100kt (direction encoded as dir+50)
+                    if wind_dir > 360:
+                        wind_dir -= 5000
+                        wind_spd += 100
+
+                    level["wind_direction_deg"] = wind_dir
+                    level["wind_speed_kt"] = wind_spd
+
+                    # Temperature (remaining chars)
+                    if len(val) > 4:
+                        temp_str = val[4:]
+                        try:
+                            level["temperature_c"] = int(temp_str)
+                        except Exception:
+                            pass
+                except Exception:
+                    level["raw"] = val
+
+            station_data["levels"].append(level)
+        stations.append(station_data)
+
+    if stations:
+        result["stations"] = stations
+
+    return result
+
+
+def _winds_aloft_to_plain(parsed: dict) -> str:
+    lines = ["Winds Aloft Forecast"]
+    lines.append("-" * 40)
+    if "data_based_on" in parsed:
+        lines.append("Data Based On: " + parsed["data_based_on"])
+    if "valid_time" in parsed:
+        lines.append("Valid: " + parsed["valid_time"])
+    if "for_use" in parsed:
+        lines.append("For Use: " + parsed["for_use"])
+    if "stations" in parsed:
+        lines.append("")
+        for station in parsed["stations"]:
+            lines.append("Station: " + station["station"])
+            for level in station["levels"]:
+                alt = str(level["altitude_ft"]) + "ft"
+                if level.get("light_and_variable"):
+                    lines.append("  " + alt + ": Light and Variable")
+                elif "wind_direction_deg" in level:
+                    temp = ""
+                    if "temperature_c" in level:
+                        temp = " / " + str(level["temperature_c"]) + "C"
+                    lines.append("  " + alt + ": " + str(level["wind_direction_deg"]) + "deg at " + str(level["wind_speed_kt"]) + "kt" + temp)
+            lines.append("")
+    lines.append("Raw:\n" + parsed["raw"])
+    return "\n".join(lines)
+
+
+def _winds_aloft_to_markdown(parsed: dict) -> str:
+    lines = ["## Winds Aloft Forecast\n"]
+    if "valid_time" in parsed:
+        lines.append("**Valid:** " + parsed["valid_time"])
+    if "for_use" in parsed:
+        lines.append("**For Use:** " + parsed["for_use"])
+    if "data_based_on" in parsed:
+        lines.append("**Data Based On:** " + parsed["data_based_on"])
+    if "stations" in parsed:
+        lines.append("")
+        for station in parsed["stations"]:
+            lines.append("### " + station["station"])
+            lines.append("| Altitude | Direction | Speed | Temp |")
+            lines.append("| --- | --- | --- | --- |")
+            for level in station["levels"]:
+                alt = str(level["altitude_ft"]) + "ft"
+                if level.get("light_and_variable"):
+                    lines.append("| " + alt + " | Light & Variable | — | — |")
+                elif "wind_direction_deg" in level:
+                    temp = str(level["temperature_c"]) + "C" if "temperature_c" in level else "—"
+                    lines.append("| " + alt + " | " + str(level["wind_direction_deg"]) + "° | " + str(level["wind_speed_kt"]) + "kt | " + temp + " |")
+            lines.append("")
+    lines.append("```\n" + parsed["raw"] + "\n```")
+    return "\n".join(lines)
+
+
+async def winds_aloft_to_json(data: bytes, options: dict | None = None) -> bytes:
+    raw = data.decode().strip()
+    parsed = _parse_winds_aloft_manual(raw)
+    return orjson.dumps(parsed, option=orjson.OPT_INDENT_2)
+
+
+async def winds_aloft_to_plain_text(data: bytes, options: dict | None = None) -> bytes:
+    raw = data.decode().strip()
+    parsed = _parse_winds_aloft_manual(raw)
+    return _winds_aloft_to_plain(parsed).encode()
+
+
+async def winds_aloft_to_markdown(data: bytes, options: dict | None = None) -> bytes:
+    raw = data.decode().strip()
+    parsed = _parse_winds_aloft_manual(raw)
+    return _winds_aloft_to_markdown(parsed).encode()

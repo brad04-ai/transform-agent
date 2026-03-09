@@ -131,6 +131,9 @@ def _register_transforms() -> None:
     r(F.ATIS, F.JSON,       aviation.atis_to_json,        cost_t, "ATIS → JSON")
     r(F.ATIS, F.PLAIN_TEXT, aviation.atis_to_plain_text,  cost_t, "ATIS → Plain Text")
     r(F.ATIS, F.MARKDOWN,   aviation.atis_to_markdown,    cost_t, "ATIS → Markdown")
+    r(F.WINDS_ALOFT, F.JSON,       aviation.winds_aloft_to_json,        cost_t, "Winds Aloft → JSON")
+    r(F.WINDS_ALOFT, F.PLAIN_TEXT, aviation.winds_aloft_to_plain_text,  cost_t, "Winds Aloft → Plain Text")
+    r(F.WINDS_ALOFT, F.MARKDOWN,   aviation.winds_aloft_to_markdown,    cost_t, "Winds Aloft → Markdown")
 
     # --- Encoding ---
     r(F.PLAIN_TEXT, F.BASE64,      encoding.to_base64,       cost_e, "Text → Base64")

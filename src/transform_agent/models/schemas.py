@@ -33,6 +33,7 @@ class Format(str, Enum):
     SIGMET = "sigmet"
     AIRMET = "airmet"
     ATIS = "atis"
+    WINDS_ALOFT = "winds_aloft"
 
 
 # Binary formats that must be base64-encoded in transit
