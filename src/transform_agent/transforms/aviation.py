@@ -535,3 +535,266 @@ async def pirep_to_markdown(data: bytes, options: dict | None = None) -> bytes:
     raw = data.decode().strip()
     parsed = _parse_pirep_manual(raw)
     return _pirep_to_markdown(parsed).encode()
+
+
+
+# ---------------------------------------------------------------------------
+# SIGMET parsing
+# ---------------------------------------------------------------------------
+
+def _parse_sigmet_manual(raw: str) -> dict:
+    raw = raw.strip()
+    result = {"raw": raw, "type": "SIGMET"}
+
+    m = re.match(r'^([A-Z]{4})\s+SIGMET', raw)
+    if m:
+        result["issuing_office"] = m.group(1)
+
+    m = re.search(r'SIGMET\s+([A-Z0-9]+)\s+VALID', raw)
+    if m:
+        result["identifier"] = m.group(1)
+
+    m = re.search(r'VALID\s+(\d{6})/(\d{6})', raw)
+    if m:
+        result["valid_from"] = m.group(1)
+        result["valid_to"] = m.group(2)
+
+    m = re.search(r'(\w+)\s+FIR', raw)
+    if m:
+        result["fir"] = m.group(1)
+
+    phenomena = ["OBSC TS", "EMBD TS", "FRQ TS", "SQL TS", "SEV TURB", "SEV ICE",
+                 "SEV MTW", "HVY DS", "HVY SS", "VA CLD", "VA ERUPTION", "RDOACT CLD"]
+    for p in phenomena:
+        if p in raw.upper():
+            result["phenomenon"] = p
+            break
+
+    if "INTSF" in raw:
+        result["intensity"] = "INTENSIFYING"
+    elif "WKN" in raw:
+        result["intensity"] = "WEAKENING"
+    elif "NC" in raw:
+        result["intensity"] = "NO CHANGE"
+
+    m = re.search(r'FL(\d{3})/(\d{3})', raw)
+    if m:
+        result["altitude"] = {
+            "lower_fl": int(m.group(1)) * 100,
+            "upper_fl": int(m.group(2)) * 100,
+        }
+    else:
+        m = re.search(r'TOP\s+FL(\d{3})', raw)
+        if m:
+            result["altitude"] = {"top_fl": int(m.group(1)) * 100}
+
+    m = re.search(r'MOV\s+([A-Z]+)\s+(\d+)KT', raw)
+    if m:
+        result["movement"] = {
+            "direction": m.group(1),
+            "speed_kt": int(m.group(2)),
+        }
+
+    return result
+
+
+def _sigmet_to_plain(parsed: dict) -> str:
+    lines = ["SIGMET -- " + parsed.get("identifier", "Unknown")]
+    lines.append("-" * 40)
+    if "issuing_office" in parsed:
+        lines.append("Issuing Office: " + parsed["issuing_office"])
+    if "fir" in parsed:
+        lines.append("FIR: " + parsed["fir"])
+    if "valid_from" in parsed:
+        lines.append("Valid: " + parsed["valid_from"] + " to " + parsed["valid_to"])
+    if "phenomenon" in parsed:
+        lines.append("Phenomenon: " + parsed["phenomenon"])
+    if "intensity" in parsed:
+        lines.append("Intensity: " + parsed["intensity"])
+    if "altitude" in parsed:
+        alt = parsed["altitude"]
+        if "lower_fl" in alt:
+            lines.append("Altitude: FL" + str(alt["lower_fl"]//100) + " to FL" + str(alt["upper_fl"]//100))
+        elif "top_fl" in alt:
+            lines.append("Top: FL" + str(alt["top_fl"]//100))
+    if "movement" in parsed:
+        mv = parsed["movement"]
+        lines.append("Movement: " + mv["direction"] + " at " + str(mv["speed_kt"]) + "kt")
+    lines.append("Raw: " + parsed["raw"])
+    return "\n".join(lines)
+
+
+def _sigmet_to_markdown(parsed: dict) -> str:
+    lines = ["## SIGMET " + parsed.get("identifier", "Unknown") + "\n"]
+    if "issuing_office" in parsed:
+        lines.append("**Issuing Office:** " + parsed["issuing_office"])
+    if "fir" in parsed:
+        lines.append("**FIR:** " + parsed["fir"])
+    if "valid_from" in parsed:
+        lines.append("**Valid:** " + parsed["valid_from"] + " to " + parsed["valid_to"])
+    if "phenomenon" in parsed:
+        lines.append("**Phenomenon:** " + parsed["phenomenon"])
+    if "intensity" in parsed:
+        lines.append("**Intensity:** " + parsed["intensity"])
+    if "altitude" in parsed:
+        alt = parsed["altitude"]
+        if "lower_fl" in alt:
+            lines.append("**Altitude:** FL" + str(alt["lower_fl"]//100) + " to FL" + str(alt["upper_fl"]//100))
+        elif "top_fl" in alt:
+            lines.append("**Top:** FL" + str(alt["top_fl"]//100))
+    if "movement" in parsed:
+        mv = parsed["movement"]
+        lines.append("**Movement:** " + mv["direction"] + " at " + str(mv["speed_kt"]) + "kt")
+    lines.append("```\n" + parsed["raw"] + "\n```")
+    return "\n".join(lines)
+
+
+async def sigmet_to_json(data: bytes, options: dict | None = None) -> bytes:
+    raw = data.decode().strip()
+    parsed = _parse_sigmet_manual(raw)
+    return orjson.dumps(parsed, option=orjson.OPT_INDENT_2)
+
+
+async def sigmet_to_plain_text(data: bytes, options: dict | None = None) -> bytes:
+    raw = data.decode().strip()
+    parsed = _parse_sigmet_manual(raw)
+    return _sigmet_to_plain(parsed).encode()
+
+
+async def sigmet_to_markdown(data: bytes, options: dict | None = None) -> bytes:
+    raw = data.decode().strip()
+    parsed = _parse_sigmet_manual(raw)
+    return _sigmet_to_markdown(parsed).encode()
+
+
+# ---------------------------------------------------------------------------
+# AIRMET parsing
+# ---------------------------------------------------------------------------
+
+def _parse_airmet_manual(raw: str) -> dict:
+    raw = raw.strip()
+    result = {"raw": raw, "type": "AIRMET"}
+
+    if "SIERRA" in raw.upper():
+        result["airmet_type"] = "SIERRA"
+        result["airmet_type_desc"] = "IFR conditions / Mountain obscuration"
+    elif "TANGO" in raw.upper():
+        result["airmet_type"] = "TANGO"
+        result["airmet_type_desc"] = "Turbulence / Strong surface winds"
+    elif "ZULU" in raw.upper():
+        result["airmet_type"] = "ZULU"
+        result["airmet_type_desc"] = "Icing / Freezing level"
+
+    m = re.match(r'^([A-Z]{4})\s+AIRMET', raw)
+    if m:
+        result["issuing_center"] = m.group(1)
+
+    m = re.search(r'VALID\s+UNTIL\s+(\d{6})', raw)
+    if m:
+        result["valid_until"] = m.group(1)
+
+    states = re.findall(r'\b([A-Z]{2})\b', raw)
+    us_states = {"AL","AK","AZ","AR","CA","CO","CT","DE","FL","GA","HI","ID","IL","IN",
+                 "IA","KS","KY","LA","ME","MD","MA","MI","MN","MS","MO","MT","NE","NV",
+                 "NH","NJ","NM","NY","NC","ND","OH","OK","OR","PA","RI","SC","SD","TN",
+                 "TX","UT","VT","VA","WA","WV","WI","WY"}
+    found_states = [s for s in states if s in us_states]
+    if found_states:
+        result["states_affected"] = list(dict.fromkeys(found_states))
+
+    m = re.search(r'BLW\s+(\d+)', raw)
+    if m:
+        result["below_ft"] = int(m.group(1))
+
+    m = re.search(r'BTN\s+(\d+)\s+AND\s+(\d+)', raw)
+    if m:
+        result["altitude"] = {
+            "lower_ft": int(m.group(1)),
+            "upper_ft": int(m.group(2)),
+        }
+
+    m = re.search(r'TOPS\s+TO\s+FL(\d{3})', raw)
+    if m:
+        result["tops_fl"] = int(m.group(1)) * 100
+
+    conditions = []
+    if "ICG" in raw or "ICING" in raw:
+        conditions.append("ICING")
+    if "TURB" in raw:
+        conditions.append("TURBULENCE")
+    if "IFR" in raw:
+        conditions.append("IFR CONDITIONS")
+    if "MTN OBSCN" in raw or "MTN OBS" in raw:
+        conditions.append("MOUNTAIN OBSCURATION")
+    if "LLWS" in raw:
+        conditions.append("LOW LEVEL WIND SHEAR")
+    if conditions:
+        result["conditions"] = conditions
+
+    return result
+
+
+def _airmet_to_plain(parsed: dict) -> str:
+    atype = parsed.get("airmet_type", "Unknown")
+    lines = ["AIRMET " + atype + " -- " + parsed.get("airmet_type_desc", "")]
+    lines.append("-" * 40)
+    if "issuing_center" in parsed:
+        lines.append("Issuing Center: " + parsed["issuing_center"])
+    if "valid_until" in parsed:
+        lines.append("Valid Until: " + parsed["valid_until"])
+    if "states_affected" in parsed:
+        lines.append("States: " + ", ".join(parsed["states_affected"]))
+    if "conditions" in parsed:
+        lines.append("Conditions: " + ", ".join(parsed["conditions"]))
+    if "altitude" in parsed:
+        alt = parsed["altitude"]
+        lines.append("Altitude: " + str(alt["lower_ft"]) + "ft to " + str(alt["upper_ft"]) + "ft")
+    if "below_ft" in parsed:
+        lines.append("Below: " + str(parsed["below_ft"]) + "ft")
+    if "tops_fl" in parsed:
+        lines.append("Tops: FL" + str(parsed["tops_fl"]//100))
+    lines.append("Raw: " + parsed["raw"])
+    return "\n".join(lines)
+
+
+def _airmet_to_markdown(parsed: dict) -> str:
+    atype = parsed.get("airmet_type", "Unknown")
+    emoji = {"SIERRA": "SIERRA", "TANGO": "TANGO", "ZULU": "ZULU"}.get(atype, atype)
+    lines = ["## AIRMET " + emoji + "\n"]
+    if "airmet_type_desc" in parsed:
+        lines.append("**Type:** " + parsed["airmet_type_desc"] + "\n")
+    if "issuing_center" in parsed:
+        lines.append("**Issuing Center:** " + parsed["issuing_center"])
+    if "valid_until" in parsed:
+        lines.append("**Valid Until:** " + parsed["valid_until"])
+    if "states_affected" in parsed:
+        lines.append("**States Affected:** " + ", ".join(parsed["states_affected"]))
+    if "conditions" in parsed:
+        lines.append("**Conditions:** " + ", ".join(parsed["conditions"]))
+    if "altitude" in parsed:
+        alt = parsed["altitude"]
+        lines.append("**Altitude:** " + str(alt["lower_ft"]) + "ft to " + str(alt["upper_ft"]) + "ft")
+    if "below_ft" in parsed:
+        lines.append("**Below:** " + str(parsed["below_ft"]) + "ft")
+    if "tops_fl" in parsed:
+        lines.append("**Tops:** FL" + str(parsed["tops_fl"]//100))
+    lines.append("```\n" + parsed["raw"] + "\n```")
+    return "\n".join(lines)
+
+
+async def airmet_to_json(data: bytes, options: dict | None = None) -> bytes:
+    raw = data.decode().strip()
+    parsed = _parse_airmet_manual(raw)
+    return orjson.dumps(parsed, option=orjson.OPT_INDENT_2)
+
+
+async def airmet_to_plain_text(data: bytes, options: dict | None = None) -> bytes:
+    raw = data.decode().strip()
+    parsed = _parse_airmet_manual(raw)
+    return _airmet_to_plain(parsed).encode()
+
+
+async def airmet_to_markdown(data: bytes, options: dict | None = None) -> bytes:
+    raw = data.decode().strip()
+    parsed = _parse_airmet_manual(raw)
+    return _airmet_to_markdown(parsed).encode()

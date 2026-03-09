@@ -30,6 +30,8 @@ class Format(str, Enum):
     TAF = "taf"
     NOTAM = "notam"
     PIREP = "pirep"
+    SIGMET = "sigmet"
+    AIRMET = "airmet"
 
 
 # Binary formats that must be base64-encoded in transit

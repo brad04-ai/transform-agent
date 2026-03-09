@@ -122,6 +122,12 @@ def _register_transforms() -> None:
     r(F.PIREP, F.JSON,       aviation.pirep_to_json,        cost_t, "PIREP → JSON")
     r(F.PIREP, F.PLAIN_TEXT, aviation.pirep_to_plain_text,  cost_t, "PIREP → Plain Text")
     r(F.PIREP, F.MARKDOWN,   aviation.pirep_to_markdown,    cost_t, "PIREP → Markdown")
+    r(F.SIGMET, F.JSON,       aviation.sigmet_to_json,        cost_t, "SIGMET → JSON")
+    r(F.SIGMET, F.PLAIN_TEXT, aviation.sigmet_to_plain_text,  cost_t, "SIGMET → Plain Text")
+    r(F.SIGMET, F.MARKDOWN,   aviation.sigmet_to_markdown,    cost_t, "SIGMET → Markdown")
+    r(F.AIRMET, F.JSON,       aviation.airmet_to_json,        cost_t, "AIRMET → JSON")
+    r(F.AIRMET, F.PLAIN_TEXT, aviation.airmet_to_plain_text,  cost_t, "AIRMET → Plain Text")
+    r(F.AIRMET, F.MARKDOWN,   aviation.airmet_to_markdown,    cost_t, "AIRMET → Markdown")
 
     # --- Encoding ---
     r(F.PLAIN_TEXT, F.BASE64,      encoding.to_base64,       cost_e, "Text → Base64")
