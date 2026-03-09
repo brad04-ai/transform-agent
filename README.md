@@ -1,6 +1,6 @@
 # Data Transform Agent
 
-A headless, zero-UI data transformation service that converts between **52+ format pairs** including aviation weather formats. Discovered by AI agents via [MCP](https://modelcontextprotocol.io), [Google A2A](https://github.com/google/A2A), and OpenAPI. Paid via [x402](https://www.x402.org) (USDC stablecoin) — first 100 requests free.
+A headless, zero-UI data transformation service that converts between **55+ format pairs** including aviation weather formats. Discovered by AI agents via [MCP](https://modelcontextprotocol.io), [Google A2A](https://github.com/google/A2A), and OpenAPI. Paid via [x402](https://www.x402.org) (USDC stablecoin) — first 100 requests free.
 
 **Live endpoint:** `https://transform-agent-lingering-surf-8155.fly.dev`
 
@@ -14,19 +14,15 @@ A headless, zero-UI data transformation service that converts between **52+ form
 | **Markup** | HTML, Markdown, Plain Text |
 | **Documents** | PDF, Excel (.xlsx), DOCX |
 | **Encoding** | Base64, URL-encoded, Hex |
-| **Aviation** | METAR, TAF, NOTAM |
+| **Aviation** | METAR, TAF, NOTAM, PIREP |
 
 ---
 
 ## Aviation Features
 
-Purpose-built for aviation AI agents and flight planning workflows:
+Purpose-built for aviation AI agents and flight planning workflows. Parses raw aviation weather formats into clean structured data.
 
-- **METAR → JSON/Markdown/Plain Text** — parses raw METAR strings into structured weather data including flight category (VFR/MVFR/IFR/LIFR), wind, visibility, ceiling, temp, and altimeter
-- **TAF → JSON/Markdown/Plain Text** — parses terminal aerodrome forecasts into structured forecast groups
-- **NOTAM → JSON/Markdown/Plain Text** — parses NOTAMs into structured fields including location, effective times, and description
-
-### Example: METAR to Markdown
+### METAR → Markdown
 ```json
 {
   "source_format": "metar",
@@ -44,6 +40,29 @@ Returns:
 **Temp/Dew:** 14°C / 8°C
 **Altimeter:** 29.92 inHg
 ```
+
+### PIREP → Markdown
+```json
+{
+  "source_format": "pirep",
+  "target_format": "markdown",
+  "data": "UA /OV OAK/TM 1530/FL085/TP C172/SK BKN065/TA 05/WV 27015/TB LGT/RM SMOOTH BELOW"
+}
+```
+Returns:
+```
+## PIREP 🔵 ROUTINE
+**Location:** OAK
+**Altitude:** 8500 ft
+**Aircraft:** C172
+**Sky:** BKN065
+**Temperature:** 5C
+**Wind:** 270deg at 15kt
+**Turbulence:** 🟢 LGT
+**Remarks:** SMOOTH BELOW
+```
+
+All aviation formats also support `json` and `plain_text` as target formats.
 
 ---
 
@@ -93,13 +112,17 @@ curl -X POST https://transform-agent-lingering-surf-8155.fly.dev/transform \
 | **MCP** (Streamable HTTP) | `/mcp` |
 | **Google A2A** (Agent Card) | `/.well-known/agent-card.json` |
 | **OpenAPI** | `/openapi.json` |
+| **Smithery** | [smithery.ai/server/brad04-ai/data-transform](https://smithery.ai/server/brad04-ai/data-transform) |
+| **mcp.so** | [mcp.so](https://mcp.so) |
+
+---
 
 ## Pricing
 
 | Transform Type | Cost |
 | --- | --- |
 | Text formats (JSON, CSV, XML, YAML, etc.) | $0.001 |
-| Aviation formats (METAR, TAF, NOTAM) | $0.001 |
+| Aviation formats (METAR, TAF, NOTAM, PIREP) | $0.001 |
 | Documents (PDF, Excel, DOCX) | $0.005 |
 | Encoding (Base64, hex, URL) | $0.0005 |
 
