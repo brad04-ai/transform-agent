@@ -408,8 +408,7 @@ def _parse_pirep_manual(raw: str) -> dict:
         result["aircraft_type"] = m.group(1)
 
     # Sky conditions
-    m = re.search(r'SK\s+([^/
-]+)', raw)
+    m = re.search(r'SK\s+([^/\n]+)', raw)
     if m:
         result["sky"] = m.group(1).strip()
 
