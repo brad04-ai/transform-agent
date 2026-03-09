@@ -1,6 +1,6 @@
 # Data Transform Agent
 
-A headless, zero-UI data transformation service that converts between **55+ format pairs** including aviation weather formats. Discovered by AI agents via [MCP](https://modelcontextprotocol.io), [Google A2A](https://github.com/google/A2A), and OpenAPI. Paid via [x402](https://www.x402.org) (USDC stablecoin) — first 100 requests free.
+A headless, zero-UI data transformation service that converts between **61+ format pairs** including aviation weather formats. Discovered by AI agents via [MCP](https://modelcontextprotocol.io), [Google A2A](https://github.com/google/A2A), and OpenAPI. Paid via [x402](https://www.x402.org) (USDC stablecoin) — first 100 requests free.
 
 **Live endpoint:** `https://transform-agent-lingering-surf-8155.fly.dev`
 
@@ -14,7 +14,7 @@ A headless, zero-UI data transformation service that converts between **55+ form
 | **Markup** | HTML, Markdown, Plain Text |
 | **Documents** | PDF, Excel (.xlsx), DOCX |
 | **Encoding** | Base64, URL-encoded, Hex |
-| **Aviation** | METAR, TAF, NOTAM, PIREP |
+| **Aviation** | METAR, TAF, NOTAM, PIREP, SIGMET, AIRMET |
 
 ---
 
