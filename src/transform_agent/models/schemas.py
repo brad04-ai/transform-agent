@@ -32,6 +32,7 @@ class Format(str, Enum):
     PIREP = "pirep"
     SIGMET = "sigmet"
     AIRMET = "airmet"
+    ATIS = "atis"
 
 
 # Binary formats that must be base64-encoded in transit

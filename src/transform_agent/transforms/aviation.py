@@ -798,3 +798,193 @@ async def airmet_to_markdown(data: bytes, options: dict | None = None) -> bytes:
     raw = data.decode().strip()
     parsed = _parse_airmet_manual(raw)
     return _airmet_to_markdown(parsed).encode()
+
+
+# ---------------------------------------------------------------------------
+# ATIS parsing
+# ---------------------------------------------------------------------------
+
+def _parse_atis_manual(raw: str) -> dict:
+    raw = raw.strip()
+    result = {"raw": raw, "type": "ATIS"}
+
+    # Station
+    m = re.match(r'^([A-Z]{4})\s+ATIS', raw)
+    if m:
+        result["station"] = m.group(1)
+
+    # Information identifier (phonetic alphabet letter)
+    m = re.search(r'ATIS\s+INFO\s+([A-Z]+)', raw)
+    if m:
+        result["information"] = m.group(1)
+
+    # Time
+    m = re.search(r'\b(\d{4})Z\b', raw)
+    if m:
+        t = m.group(1)
+        result["time"] = {"hour": t[0:2], "minute": t[2:4], "utc": True}
+
+    # Wind
+    m = re.search(r'\b(\d{3}|VRB)(\d{2,3})(G(\d{2,3}))?KT\b', raw)
+    if m:
+        result["wind"] = {
+            "direction_deg": None if m.group(1) == "VRB" else int(m.group(1)),
+            "variable": m.group(1) == "VRB",
+            "speed_kt": int(m.group(2)),
+            "gust_kt": int(m.group(4)) if m.group(4) else None,
+        }
+
+    # Visibility
+    m = re.search(r'\b(\d+(?:/\d+)?)\s*SM\b', raw)
+    if m:
+        try:
+            result["visibility_sm"] = float(m.group(1))
+        except Exception:
+            result["visibility_sm"] = m.group(1)
+
+    # Sky conditions
+    sky_matches = re.findall(r'\b(FEW|SCT|BKN|OVC|CLR|SKC|CAVOK)(\d{3})?(CB|TCU)?\b', raw)
+    if sky_matches:
+        result["sky_conditions"] = [
+            {
+                "cover": s[0],
+                "base_ft": int(s[1]) * 100 if s[1] else None,
+                "cloud_type": s[2] if s[2] else None,
+            }
+            for s in sky_matches
+        ]
+
+    # Temperature / Dewpoint
+    m = re.search(r'\b(M?\d{2})/(M?\d{2})\b', raw)
+    if m:
+        def parse_temp(t):
+            return -int(t[1:]) if t.startswith("M") else int(t)
+        result["temperature_c"] = parse_temp(m.group(1))
+        result["dewpoint_c"] = parse_temp(m.group(2))
+
+    # Altimeter
+    m = re.search(r'\bA(\d{4})\b', raw)
+    if m:
+        result["altimeter_inhg"] = int(m.group(1)) / 100.0
+
+    # Active runways
+    approaches = re.findall(r'(?:ILS|VOR|RNAV|LDA|LOC)?\s*RWY\s+([\d]{2}[LRC]?)', raw)
+    if approaches:
+        result["runways_in_use"] = list(dict.fromkeys(approaches))
+
+    # Departure runway
+    m = re.search(r'DEPTG\s+RWY\s+([\d]{2}[LRC]?)', raw)
+    if m:
+        result["departure_runway"] = m.group(1)
+
+    # NOTAMs/remarks
+    m = re.search(r'NOTAM[S]?[.\s]+(.+?)(?:\.|$)', raw)
+    if m:
+        result["notams"] = m.group(1).strip()
+
+    # Flight category
+    vis = result.get("visibility_sm")
+    sky = result.get("sky_conditions", [])
+    ceiling = None
+    for layer in sky:
+        if layer["cover"] in ("BKN", "OVC") and layer["base_ft"] is not None:
+            ceiling = layer["base_ft"]
+            break
+    if vis is not None or ceiling is not None:
+        if (vis is not None and vis < 1) or (ceiling is not None and ceiling < 500):
+            result["flight_category"] = "LIFR"
+        elif (vis is not None and vis < 3) or (ceiling is not None and ceiling < 1000):
+            result["flight_category"] = "IFR"
+        elif (vis is not None and vis < 5) or (ceiling is not None and ceiling < 3000):
+            result["flight_category"] = "MVFR"
+        else:
+            result["flight_category"] = "VFR"
+
+    return result
+
+
+def _atis_to_plain(parsed: dict) -> str:
+    lines = ["ATIS — " + parsed.get("station", "Unknown") + " INFO " + parsed.get("information", "")]
+    lines.append("-" * 40)
+    if "time" in parsed:
+        t = parsed["time"]
+        lines.append("Time: " + t["hour"] + ":" + t["minute"] + "Z")
+    if "wind" in parsed:
+        w = parsed["wind"]
+        dir_str = "Variable" if w["variable"] else str(w["direction_deg"]) + "deg"
+        gust_str = ", gusting " + str(w["gust_kt"]) + "kt" if w["gust_kt"] else ""
+        lines.append("Wind: " + dir_str + " at " + str(w["speed_kt"]) + "kt" + gust_str)
+    if "visibility_sm" in parsed:
+        lines.append("Visibility: " + str(parsed["visibility_sm"]) + " SM")
+    if "sky_conditions" in parsed:
+        for s in parsed["sky_conditions"]:
+            base = " at " + str(s["base_ft"]) + "ft" if s["base_ft"] else ""
+            lines.append("Sky: " + s["cover"] + base)
+    if "temperature_c" in parsed:
+        lines.append("Temp/Dew: " + str(parsed["temperature_c"]) + "C / " + str(parsed["dewpoint_c"]) + "C")
+    if "altimeter_inhg" in parsed:
+        lines.append("Altimeter: " + str(parsed["altimeter_inhg"]) + " inHg")
+    if "flight_category" in parsed:
+        lines.append("Flight Category: " + parsed["flight_category"])
+    if "runways_in_use" in parsed:
+        lines.append("Runways In Use: " + ", ".join(parsed["runways_in_use"]))
+    if "departure_runway" in parsed:
+        lines.append("Departure Runway: " + parsed["departure_runway"])
+    if "notams" in parsed:
+        lines.append("NOTAMs: " + parsed["notams"])
+    lines.append("Raw: " + parsed["raw"])
+    return "\n".join(lines)
+
+
+def _atis_to_markdown(parsed: dict) -> str:
+    lines = ["## ATIS — " + parsed.get("station", "Unknown") + " INFO " + parsed.get("information", "") + "\n"]
+    if "flight_category" in parsed:
+        cat = parsed["flight_category"]
+        emoji = {"VFR": "🟢", "MVFR": "🔵", "IFR": "🔴", "LIFR": "🟣"}.get(cat, "⚪")
+        lines.append("**Flight Category:** " + emoji + " " + cat + "\n")
+    if "time" in parsed:
+        t = parsed["time"]
+        lines.append("**Time:** " + t["hour"] + ":" + t["minute"] + "Z")
+    if "wind" in parsed:
+        w = parsed["wind"]
+        dir_str = "Variable" if w["variable"] else str(w["direction_deg"]) + "deg"
+        gust_str = ", gusting **" + str(w["gust_kt"]) + "kt**" if w["gust_kt"] else ""
+        lines.append("**Wind:** " + dir_str + " at **" + str(w["speed_kt"]) + "kt**" + gust_str)
+    if "visibility_sm" in parsed:
+        lines.append("**Visibility:** " + str(parsed["visibility_sm"]) + " SM")
+    if "sky_conditions" in parsed:
+        sky_strs = []
+        for s in parsed["sky_conditions"]:
+            base = " @ " + str(s["base_ft"]) + "ft" if s["base_ft"] else ""
+            sky_strs.append(s["cover"] + base)
+        lines.append("**Sky:** " + ", ".join(sky_strs))
+    if "temperature_c" in parsed:
+        lines.append("**Temp/Dew:** " + str(parsed["temperature_c"]) + "C / " + str(parsed["dewpoint_c"]) + "C")
+    if "altimeter_inhg" in parsed:
+        lines.append("**Altimeter:** " + str(parsed["altimeter_inhg"]) + " inHg")
+    if "runways_in_use" in parsed:
+        lines.append("**Runways In Use:** " + ", ".join(parsed["runways_in_use"]))
+    if "departure_runway" in parsed:
+        lines.append("**Departure Runway:** " + parsed["departure_runway"])
+    if "notams" in parsed:
+        lines.append("**NOTAMs:** " + parsed["notams"])
+    lines.append("\n```\n" + parsed["raw"] + "\n```")
+    return "\n".join(lines)
+
+
+async def atis_to_json(data: bytes, options: dict | None = None) -> bytes:
+    raw = data.decode().strip()
+    parsed = _parse_atis_manual(raw)
+    return orjson.dumps(parsed, option=orjson.OPT_INDENT_2)
+
+
+async def atis_to_plain_text(data: bytes, options: dict | None = None) -> bytes:
+    raw = data.decode().strip()
+    parsed = _parse_atis_manual(raw)
+    return _atis_to_plain(parsed).encode()
+
+
+async def atis_to_markdown(data: bytes, options: dict | None = None) -> bytes:
+    raw = data.decode().strip()
+    parsed = _parse_atis_manual(raw)
+    return _atis_to_markdown(parsed).encode()
