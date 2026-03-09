@@ -394,11 +394,11 @@ def _parse_pirep_manual(raw: str) -> dict:
     if m:
         result["altitude_ft"] = int(m.group(1)) * 100
 
-    m = re.search(r'TP\s+([A-Z0-9/]+)', raw)
+    m = re.search(r'TP\s+([A-Z0-9]+)', raw)
     if m:
         result["aircraft_type"] = m.group(1)
 
-    m = re.search(r'SK\s+([^\n/][^\n]*)', raw)
+    m = re.search(r'SK\s+((?:(?!TA\s|WV\s|TB\s|IC\s|RM\s|FL\d).)+)', raw)
     if m:
         result["sky"] = m.group(1).strip()
 
@@ -414,7 +414,7 @@ def _parse_pirep_manual(raw: str) -> dict:
             "speed_kt": int(m.group(2)),
         }
 
-    m = re.search(r'TB\s+([^\n/][^\n]*)', raw)
+    m = re.search(r'TB\s+((?:(?!IC\s|RM\s|SK\s|WV\s).)+)', raw)
     if m:
         tb = m.group(1).strip()
         result["turbulence"] = tb
