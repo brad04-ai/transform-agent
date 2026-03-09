@@ -361,3 +361,194 @@ async def notam_to_markdown(data: bytes, options: dict | None = None) -> bytes:
         lines.append(f"\n**Description:**\n{parsed['description']}")
     lines.append(f"\n```\n{parsed['raw']}\n```")
     return "\n".join(lines).encode()
+
+
+# ---------------------------------------------------------------------------
+# PIREP parsing
+# ---------------------------------------------------------------------------
+
+def _parse_pirep_manual(raw: str) -> dict:
+    """Parse a PIREP string into structured fields."""
+    raw = raw.strip()
+    result = {"raw": raw, "type": "PIREP"}
+
+    # Urgent vs routine
+    if raw.startswith("UUA"):
+        result["urgency"] = "URGENT"
+    else:
+        result["urgency"] = "ROUTINE"
+
+    # Location
+    m = re.search(r'OV\s+([A-Z0-9]{3,6})(?:/(\d{3})(\d{3}))?', raw)
+    if m:
+        result["location"] = {
+            "fix": m.group(1),
+            "bearing_deg": int(m.group(2)) if m.group(2) else None,
+            "distance_nm": int(m.group(3)) if m.group(3) else None,
+        }
+
+    # Time
+    m = re.search(r'TM\s+(\d{4})', raw)
+    if m:
+        t = m.group(1)
+        result["time"] = {"hour": t[0:2], "minute": t[2:4], "utc": True}
+
+    # Altitude / Flight level
+    m = re.search(r'FL(\d{3})', raw)
+    if m:
+        result["altitude_ft"] = int(m.group(1)) * 100
+    else:
+        m = re.search(r'TP\s+.*?ALT\s+(\d+)', raw)
+        if m:
+            result["altitude_ft"] = int(m.group(1))
+
+    # Aircraft type
+    m = re.search(r'TP\s+([A-Z0-9/]+)', raw)
+    if m:
+        result["aircraft_type"] = m.group(1)
+
+    # Sky conditions
+    m = re.search(r'SK\s+([^/
+]+)', raw)
+    if m:
+        result["sky"] = m.group(1).strip()
+
+    # Temperature
+    m = re.search(r'TA\s+(M?\d+)', raw)
+    if m:
+        t = m.group(1)
+        result["temperature_c"] = -int(t[1:]) if t.startswith("M") else int(t)
+
+    # Wind
+    m = re.search(r'WV\s+(\d{3})(\d{2,3})', raw)
+    if m:
+        result["wind"] = {
+            "direction_deg": int(m.group(1)),
+            "speed_kt": int(m.group(2)),
+        }
+
+    # Turbulence
+    m = re.search(r'TB\s+([^/
+]+)', raw)
+    if m:
+        tb = m.group(1).strip()
+        result["turbulence"] = tb
+        if any(x in tb.upper() for x in ["SEV", "EXTRM"]):
+            result["turbulence_severity"] = "SEVERE"
+        elif "MOD" in tb.upper():
+            result["turbulence_severity"] = "MODERATE"
+        elif "LGT" in tb.upper():
+            result["turbulence_severity"] = "LIGHT"
+        else:
+            result["turbulence_severity"] = "UNKNOWN"
+
+    # Icing
+    m = re.search(r'IC\s+([^/
+]+)', raw)
+    if m:
+        ic = m.group(1).strip()
+        result["icing"] = ic
+        if any(x in ic.upper() for x in ["SEV", "HVY"]):
+            result["icing_severity"] = "SEVERE"
+        elif "MOD" in ic.upper():
+            result["icing_severity"] = "MODERATE"
+        elif "LGT" in ic.upper():
+            result["icing_severity"] = "LIGHT"
+        else:
+            result["icing_severity"] = "UNKNOWN"
+
+    # Remarks
+    m = re.search(r'RM\s+(.+)$', raw)
+    if m:
+        result["remarks"] = m.group(1).strip()
+
+    return result
+
+
+def _pirep_to_plain(parsed: dict) -> str:
+    lines = [f"PIREP Report — {parsed.get('urgency', 'ROUTINE')}"]
+    lines.append("-" * 40)
+    if "location" in parsed:
+        loc = parsed["location"]
+        loc_str = loc["fix"]
+        if loc["bearing_deg"]:
+            loc_str += f" {loc['bearing_deg']}° / {loc['distance_nm']}nm"
+        lines.append(f"Location: {loc_str}")
+    if "time" in parsed:
+        t = parsed["time"]
+        lines.append(f"Time: {t['hour']}:{t['minute']}Z")
+    if "altitude_ft" in parsed:
+        lines.append(f"Altitude: {parsed['altitude_ft']:,} ft")
+    if "aircraft_type" in parsed:
+        lines.append(f"Aircraft: {parsed['aircraft_type']}")
+    if "sky" in parsed:
+        lines.append(f"Sky: {parsed['sky']}")
+    if "temperature_c" in parsed:
+        lines.append(f"Temperature: {parsed['temperature_c']}°C")
+    if "wind" in parsed:
+        w = parsed["wind"]
+        lines.append(f"Wind: {w['direction_deg']}° at {w['speed_kt']}kt")
+    if "turbulence" in parsed:
+        lines.append(f"Turbulence: {parsed['turbulence']} ({parsed.get('turbulence_severity', '')})")
+    if "icing" in parsed:
+        lines.append(f"Icing: {parsed['icing']} ({parsed.get('icing_severity', '')})")
+    if "remarks" in parsed:
+        lines.append(f"Remarks: {parsed['remarks']}")
+    lines.append(f"\nRaw: {parsed['raw']}")
+    return "\n".join(lines)
+
+
+def _pirep_to_markdown(parsed: dict) -> str:
+    urgency = parsed.get("urgency", "ROUTINE")
+    emoji = "🔴" if urgency == "URGENT" else "🔵"
+    lines = [f"## PIREP {emoji} {urgency}\n"]
+    if "location" in parsed:
+        loc = parsed["location"]
+        loc_str = loc["fix"]
+        if loc["bearing_deg"]:
+            loc_str += f" ({loc['bearing_deg']}°/{loc['distance_nm']}nm)"
+        lines.append(f"**Location:** {loc_str}")
+    if "time" in parsed:
+        t = parsed["time"]
+        lines.append(f"**Time:** {t['hour']}:{t['minute']}Z")
+    if "altitude_ft" in parsed:
+        lines.append(f"**Altitude:** {parsed['altitude_ft']:,} ft")
+    if "aircraft_type" in parsed:
+        lines.append(f"**Aircraft:** {parsed['aircraft_type']}")
+    if "sky" in parsed:
+        lines.append(f"**Sky:** {parsed['sky']}")
+    if "temperature_c" in parsed:
+        lines.append(f"**Temperature:** {parsed['temperature_c']}°C")
+    if "wind" in parsed:
+        w = parsed["wind"]
+        lines.append(f"**Wind:** {w['direction_deg']}° at {w['speed_kt']}kt")
+    if "turbulence" in parsed:
+        sev = parsed.get("turbulence_severity", "")
+        sev_emoji = {"SEVERE": "🔴", "MODERATE": "🟡", "LIGHT": "🟢"}.get(sev, "⚪")
+        lines.append(f"**Turbulence:** {sev_emoji} {parsed['turbulence']}")
+    if "icing" in parsed:
+        sev = parsed.get("icing_severity", "")
+        sev_emoji = {"SEVERE": "🔴", "MODERATE": "🟡", "LIGHT": "🟢"}.get(sev, "⚪")
+        lines.append(f"**Icing:** {sev_emoji} {parsed['icing']}")
+    if "remarks" in parsed:
+        lines.append(f"**Remarks:** {parsed['remarks']}")
+    lines.append(f"\n```\n{parsed['raw']}\n```")
+    return "\n".join(lines)
+
+
+async def pirep_to_json(data: bytes, options: dict | None = None) -> bytes:
+    raw = data.decode().strip()
+    parsed = _parse_pirep_manual(raw)
+    return orjson.dumps(parsed, option=orjson.OPT_INDENT_2)
+
+
+async def pirep_to_plain_text(data: bytes, options: dict | None = None) -> bytes:
+    raw = data.decode().strip()
+    parsed = _parse_pirep_manual(raw)
+    return _pirep_to_plain(parsed).encode()
+
+
+async def pirep_to_markdown(data: bytes, options: dict | None = None) -> bytes:
+    raw = data.decode().strip()
+    parsed = _parse_pirep_manual(raw)
+    return _pirep_to_markdown(parsed).encode()

@@ -119,6 +119,9 @@ def _register_transforms() -> None:
     r(F.NOTAM, F.JSON,       aviation.notam_to_json,        cost_t, "NOTAM → JSON")
     r(F.NOTAM, F.PLAIN_TEXT, aviation.notam_to_plain_text,  cost_t, "NOTAM → Plain Text")
     r(F.NOTAM, F.MARKDOWN,   aviation.notam_to_markdown,    cost_t, "NOTAM → Markdown")
+    r(F.PIREP, F.JSON,       aviation.pirep_to_json,        cost_t, "PIREP → JSON")
+    r(F.PIREP, F.PLAIN_TEXT, aviation.pirep_to_plain_text,  cost_t, "PIREP → Plain Text")
+    r(F.PIREP, F.MARKDOWN,   aviation.pirep_to_markdown,    cost_t, "PIREP → Markdown")
 
     # --- Encoding ---
     r(F.PLAIN_TEXT, F.BASE64,      encoding.to_base64,       cost_e, "Text → Base64")
