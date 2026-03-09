@@ -400,7 +400,7 @@ def _parse_pirep_manual(raw: str) -> dict:
 
     m = re.search(r'SK\s+((?:(?!TA\s|WV\s|TB\s|IC\s|RM\s|FL\d).)+)', raw)
     if m:
-        result["sky"] = m.group(1).strip()
+        result["sky"] = m.group(1).strip().rstrip("/")
 
     m = re.search(r'TA\s+(M?\d+)', raw)
     if m:
@@ -417,6 +417,7 @@ def _parse_pirep_manual(raw: str) -> dict:
     m = re.search(r'TB\s+((?:(?!IC\s|RM\s|SK\s|WV\s).)+)', raw)
     if m:
         tb = m.group(1).strip()
+        tb = tb.rstrip("/")
         result["turbulence"] = tb
         if any(x in tb.upper() for x in ["SEV", "EXTRM"]):
             result["turbulence_severity"] = "SEVERE"
